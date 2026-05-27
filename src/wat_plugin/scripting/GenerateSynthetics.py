@@ -6,7 +6,8 @@ from hec.script import Constants
 from hec.hecmath import TimeSeriesMath
 
 # new setting to run once per lifecycle.
-PER_LIFECYLCE_COMPUTE = True
+# This is faster to generate, but requires pre-processor to run for all events first
+PER_LIFECYLCE_COMPUTE = False
 
 
 #scriptConfigFilename = "synForecasts/forecastConfig.json"
@@ -114,14 +115,17 @@ def writeScriptConfig(alt, opts):
 	config["Locations"] = list()
 	for loc in locations:
 		locDict = dict()
-		locDict["name"] = loc.getName()
-		locDict["param"] = loc.getParameter()
-		locDict["dss_pathname"] = loc.getLinkedToLocation().getDssPath()
+		linkedLoc = loc.getLinkedToLocation()  		# this is the input location from the HS model 
+		locDict["name"] = linkedLoc.getName()
+		locDict["param"] = linkedLoc.getParameter()
+		locPath = linkedLoc.getDssPath()
+		locDict["dss_pathname"] = locPath #.replace("alt:ap:Scripting-SynFcst", opts.getFpart())
 		alt.addComputeMessage("linked input \"%s/%s\" to %s" % (locDict["name"], locDict["param"], locDict["dss_pathname"]))
 		config["Locations"].append(locDict)
 
 	# write to file
 	d = getOutputDir(opts)
+	# TODO: EFP plugin assumes the output is always the lifecycle folder, this would break that.
 	#if not PER_LIFECYLCE_COMPUTE:
 	#	os.path.join(d, "event %d" % opts.getCurrentEventNumber())
 	configFilename = os.path.join(d, "SynFcstConfig.json") 
@@ -130,20 +134,6 @@ def writeScriptConfig(alt, opts):
 	
 	return stringWrap(configFilename)
 	
-
-def createDailyAverageForForecasts(alt, opts):
-	"""
-	"""
-	for inputLoc in alt.getInputDataLocations():
-		inputTSM = TimeSeriesMath(alt.loadTimeSeries(inputLoc))
-		# see https://www.hec.usace.army.mil/confluence/dssdocs/dssvueum/scripting/math-functions
-		# Computes daily average anchored at midnight end-of-day.  offsetString can be used to shift the calculation, but leaving blank.
-		offsetString = ""
-		dailyTSM = inputTSM.transformTimeSeries(alt.getTimeStep(), offsetString, "AVE")
-		# this ensures the output data location is used.
-		outputLoc = currentAlternative.getOutputDataLocation(inputLoc.getName(), inputLoc.getParameter())
-		dailyTSM.setPathname(outputLoc.getDssPath())
-		alt.writeTimeSeries(dailyTSM.getData())
 
 ##
 #
@@ -158,21 +148,13 @@ def createDailyAverageForForecasts(alt, opts):
 ##
 def computeAlternative(currentAlternative, computeOptions):
 	currentAlternative.addComputeMessage("Computing ScriptingAlternative:" + currentAlternative.getName())
-	if not computeOptions.isNewLifecycle() and PER_LIFECYLCE_COMPUTE:
+	if PER_LIFECYLCE_COMPUTE and computeOptions.getCurrentEventNumber() > 1:
 		currentAlternative.addComputeMessage("This already computed in event 1. Not recomputing.")
 		return True
+	
 	# write configuration for script - tells it compute timewindow and locations
 	configFile = writeScriptConfig(currentAlternative, computeOptions)
 
-	# write timeseries
-	#dataFile = writeTsCSV(currentAlternative, computeOptions, outTimestep="1DAY", timestampColumnName="GMT")
-	
-	# create daily average data
-	createDailyAverageForForecasts(currentAlternative, computeOptions)
-
-	# run R compute function here 
-	#rScriptFile = None #r"synForecasts\wat_launcher.R"
-	#currentAlternative.addComputeMessage(callR(rScriptFile, computeOptions, [configFile, dataFile], relativeScript=True))
 	resultsMessage = generateSynthetics(computeOptions, configFile)
 	currentAlternative.addComputeMessage(resultsMessage)
 

@@ -59,7 +59,10 @@ class WatCompute:
         self.lifecycle_seed = data['Randoms']['Lifecycle Random']
         self.event_seed = data['Randoms']['Event Random']
 
-        self.lifecycle_compute = False  # vs false if we want to do per-event
+        self.lifecycle_compute = data['LifecycleCompute'] # vs false if we want to do per-event
+        self.n_events = 1 # default
+        if self.lifecycle_compute:
+            self.n_events = self.nEventsPerLifecycle
         
         # model locations
         # TODO: handle more than one location!
@@ -274,7 +277,7 @@ class SynFcstGenerator:
         #extract each of the synthetic events from the DSS file and save to an 'obs_fwd' configured array
         #array to store obs_fwd arrays
         # TODO: this assumes that all events are the same length?
-        n_events = self.compute_options.nEventsPerLifecycle
+        n_events = self.compute_options.n_events # 1 #self.compute_options.nEventsPerLifecycle
         obs_fwd_gen_mat = np.full((n_events,len(self.flow_daily),max_lds+1),np.nan,dtype=np.float64)
         #print(obs_fwd_gen_mat.shape)
         #dictionary to store the date/time sequence for each synthetic event
@@ -282,6 +285,8 @@ class SynFcstGenerator:
         # TODO: this should be getting list of events from compute_options instead of assuming it starts at 1.
         for i in range(n_events):
             i_idx = i+1
+            if n_events == 1:
+                i_idx = self.compute_options.event
             evt_num = f'{i_idx:06}'
             event_f_part = "C:%s|%s" % (evt_num, part_dict['f'].split("|")[-1])
             event_dss_pathname = "/".join(["", part_dict['a'], part_dict['b'], part_dict['c'], "", part_dict['e'], event_f_part, ""])
@@ -305,10 +310,14 @@ class SynFcstGenerator:
             ext_dates = pd.date_range(pd.to_datetime(flow_daily.index[-1]) + pd.Timedelta(hours=12),pd.to_datetime(flow_daily.index[-1]) + pd.Timedelta(hours=(max_lds-1)*24+12),freq='D')
             dowy_concat = np.array([water_day(d,calendar.isleap(d.year)) for d in ext_dates])
             concat_flows = self.dly_mean[dowy_concat]
+            print(self.dly_mean)
+            # TODO: some of the dly_mean values are zero - what to do about that, if we need it at all?
             flow_daily_concat = np.concat((flow_daily.values,concat_flows))
-            #print(("event %d: flow_daily_concat: %d" % (i, len(flow_daily_concat))))     
-            #print(flow_daily_concat)
+            print(("event %d: flow_daily_concat: %d" % (i, len(flow_daily_concat))))  
+            print(len(self.flow_daily))
+            print(len(flow_daily))
             fcst_issue_dates[evt_num] = flow_daily.index
+            print(flow_daily_concat)
             obs_fwd_gen_mat[i,:,:] = obs_fwd_fun(flow_daily_concat,max_lds)
 
         dss.close()
@@ -365,7 +374,7 @@ class SynFcstGenerator:
         #Note: the array is configured to have index 0 in dimension 2 as the day t observation for compatibility with HEC-WAT; this is why dimension 2 is n_leads+1
         
         workers = self._genconfig.workers
-        n_events = self.compute_options.nEventsPerLifecycle
+        n_events = self.compute_options.n_events #self.compute_options.nEventsPerLifecycle
         
         compute_start_time = time.time()
         par_out = Parallel(n_jobs=workers)(delayed(syn_gen_par)(np.array(i)) for i in range(n_events))
@@ -383,14 +392,15 @@ class SynFcstGenerator:
                 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         # 7. Output both the aggregated daily obs file and the synthetic forecast sequence to a DSS file for each HEC-WAT synthetic event
         max_lds = self.model_parameters.max_lds
-        n_events = self.compute_options.nEventsPerLifecycle
+        n_events = self.compute_options.n_events #self.compute_options.nEventsPerLifecycle
         
         #define a function for Parallel processing 
         def dss_out_par(i):
             i_idx = i+1
+            if n_events == 1:
+                i_idx = self.compute_options.event
             evt_num = f'{i_idx:06}' #0-padded event number
             #outfiles for the synthetic forecast and daily synthetic obs
-            #dss_outfile = "%s-%s-event_%s" % (self.model_parameters.gen_site, "fcst", evt_num)
             dss_outfile = "syn-fcst-event_%s" % evt_num
             outdss = Path(self.compute_options.outDirectory, dss_outfile)
             
