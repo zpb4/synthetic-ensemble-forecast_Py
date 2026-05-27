@@ -127,8 +127,9 @@ class SynFcstGenerator:
         
         
         ## fit file
+        # TODO: we probably don't want to use pickle for this file, reconcile with the model params json file?
         self.opt_pars = pickle.load(open(self.opt_dir / mp.files["fit_file"], 'rb'), encoding='latin1')
-        #print(opt_pars)
+
 
         keysite_idx = np.where(sites==mp.keysite_label)[0][0]      #set keysite index for syn_gen code (indexing site to preserve spatial correlations)
         site_idx = np.where(sites==mp.gen_site)[0][0]              #set site index for syn_gen code    (site where synthetic forecasts are being generated)
