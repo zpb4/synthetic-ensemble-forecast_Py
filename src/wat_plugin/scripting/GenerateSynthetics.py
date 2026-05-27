@@ -51,8 +51,8 @@ def generateSynthetics(opts, configFile, synFcstScript=None, args=[], shell=Fals
 def getOutputDir(opts):
 	d = os.path.dirname(opts.getRunDirectory())
 	d = d.replace("Scripting", "")
-	if PER_LIFECYLCE_COMPUTE:
-		d = d.replace("event 1", "")
+	#if PER_LIFECYLCE_COMPUTE:
+	d = d.replace("event %d" % opts.getCurrentEventNumber(), "")
 	if not os.path.exists(d):
 		os.mkdir(d)
 	return d
@@ -126,9 +126,10 @@ def writeScriptConfig(alt, opts):
 	# write to file
 	d = getOutputDir(opts)
 	# TODO: EFP plugin assumes the output is always the lifecycle folder, this would break that.
-	#if not PER_LIFECYLCE_COMPUTE:
-	#	os.path.join(d, "event %d" % opts.getCurrentEventNumber())
-	configFilename = os.path.join(d, "SynFcstConfig.json") 
+	perEventSuffix = ""
+	if not PER_LIFECYLCE_COMPUTE:
+		perEventSuffix = "_event_%d" % opts.getCurrentEventNumber()
+	configFilename = os.path.join(d, "SynFcstConfig%s.json" % perEventSuffix) 
 	with open(configFilename, 'w') as out:
 		out.write(json.dumps(config))
 	
