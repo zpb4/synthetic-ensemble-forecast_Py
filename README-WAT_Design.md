@@ -1,5 +1,6 @@
 # Concepts
 
+
 # Files
 ## model parameters
 Represents a fitted set of synthetic forecast data that can be used to run the generator
@@ -8,5 +9,7 @@ Configuration of the model run, provides the instructions about the dimensions o
 
 # synthetic forecast generator for WAT:
 ## Install
-1) Python `venv` for synthetic forecasts into %appdata% along with synthetic forecast python code as a module, ideally to be installed via pip
+1) Python `venv` for synthetic forecasts into %appdata% along with synthetic forecast python code as a module, ideally to be installed via pip.  For now, this is installed in `%appdata%/hec/hec-wat/plugins` for the script to find.
 2) WAT Scripting plugin alternative in the /src/wat/ directory needs to be copied into the /scripting/ folder of the HEC-WAT watershed.
+
+
