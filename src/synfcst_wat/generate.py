@@ -6,7 +6,7 @@ from pathlib import Path
 # config files
 import json
 from synfcst.model_params import ModelParams
-#from synfcst.io import DssHydrographs # TODO!
+#from synfcst.io import DssHydrographIO # TODO!
 
 # others
 from pathlib import Path
