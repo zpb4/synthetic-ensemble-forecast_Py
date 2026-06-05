@@ -27,3 +27,5 @@
 *.db
 *.bak
 *.dsc
+
+/.venv

@@ -1,7 +1,7 @@
 ###
 #  this is functionally the same as create_synthetic_forecasts_hec-wat-fra.py
 # but designed to organize the inputs as a command line call for the HEC-WAT process
-### 
+###
 
 import os
 import sys
@@ -10,7 +10,8 @@ sys.path.insert(0, os.path.abspath('./src'))
 from pathlib import Path
 from datetime import datetime
 
-from synfcst_wat.generate import SynFcstGenerator, WatCompute
+from synfcst.generate import SynFcstGenerator
+from synfcst.computes import WatCompute
 from synfcst.model_params import ModelParams
 
 import argparse
@@ -36,7 +37,7 @@ def main():
     mod_params = ModelParams(Path(args.MODEL_PARAMETERS))
     generator = SynFcstGenerator(fcst_config, mod_params)
 
-    #record complete time 
+    #record complete time
     now=datetime.now()
     print('gen start',now.strftime("%H:%M:%S"))
 

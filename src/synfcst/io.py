@@ -10,6 +10,9 @@ import pandas as pd
 from hecdss import HecDss
 from hecdss import RegularTimeSeries
 
+# reduce logging
+HecDss.set_global_debug_level(2)
+
 # for CSV data
 
 class GenericHydrographIO:
@@ -31,7 +34,7 @@ class DssPathname():
         return self._path
 
     def _path_parts(self):
-        parts = dss_pathname.split('/')[1:]        
+        parts = dss_pathname.split('/')[1:]
         self._path_dict = {'abcdef'[i]:parts[i] for i in range(len(parts)-1)}
 
     def _join_path_parts(self)
@@ -50,7 +53,7 @@ class DssPathname():
         # part_dict["e"] = part_dict["e"].replace("HR", "Hour")
         self._path_dict[part.lower()] = string
         self._update()
-    
+
     def get_part(self, part):
         return self._path_dict[part.lower()]
 
@@ -76,7 +79,7 @@ class DssEnsemblePathname(DssPathname):
 
     def issue_date_string(self):
         return "T:%s" % self._issue_date.strftime("%Y%m%d-%H%M")
-        
+
     def version_date_string(self):
         return "V:%s" % self._issue_date.strftime("%Y%m%d-%H%M%S")
 
@@ -92,7 +95,7 @@ class DssEnsemblePathname(DssPathname):
         self.ensemble_id = "C:%06d" % ensembleMemberID
         self._update()
 
-# this class 
+# this class
 class DssHydrographIO(GenericHydrographIO):
     def __init__(self, dssFilename):
         self.filename = dssFilename
@@ -113,8 +116,8 @@ class DssHydrographIO(GenericHydrographIO):
         ## TODO: Make this more efficent for many timeseries, one reason to create the forecast IO class?
         try:
             dss = HecDss(str(dss_file))
-            out = RegularTimeSeries.create(values, times=times, start_date=times[0], 
-            path=pathname, data_type='PER-AVER', interval=ePart, units="cfs")   
+            out = RegularTimeSeries.create(values, times=times, start_date=times[0],
+            path=pathname, data_type='PER-AVER', interval=ePart, units="cfs")
             dss.put(out)
         finally:
             dss.done()
@@ -143,7 +146,7 @@ class NpzHydrographIO(GenericHydrographIO):
 #     def read(self, pathname):
 #         pass
 #     def write(self, pathname):
-#         pass 
+#         pass
 
 class CsvHydrographIO(GenericHydrographIO):
     def __init__(self, dssFilename):
@@ -151,12 +154,12 @@ class CsvHydrographIO(GenericHydrographIO):
     def read(self, pathname):
         pass
     def write(self, pathname):
-        pass 
+        pass
 
-# class CsvForecastIO(GenericForecastIO)    
+# class CsvForecastIO(GenericForecastIO)
 #     def __init__(self, dssFilename):
 #         pass
 #     def read(self, pathname):
 #         pass
 #     def write(self, pathname):
-#         pass 
+#         pass
