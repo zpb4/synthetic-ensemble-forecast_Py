@@ -190,8 +190,8 @@ def syn_gen_hec_wat_fra(
     final_synthetic_forecasts = np.full((n_gen,n_leads+1,n_ens), np.nan, dtype=np.float64)
     
     # gen_scale, fit_scale: (n_gen, n_leads)
-    gen_scale = obs_forward_gen[:, 1:].copy()
-    fit_scale = obs_forward_fit[knn_lst, 1:].copy()
+    gen_scale = obs_forward_gen[:, 1:].copy()           #0 index is time t obs so remove it, only want to scale forecast values
+    fit_scale = obs_forward_fit[knn_lst, 1:].copy()     #0 index is time t obs so remove it, only want to scale forecast values
     
     #calculate scaling array
     HEFS_scale = gen_scale / fit_scale  # (n_gen, n_leads)
@@ -203,8 +203,8 @@ def syn_gen_hec_wat_fra(
         col[invalid] = 1.0
 
         # obs_sc for scaling thresholds
-        obs_sc = obs_forward_gen[:,k].copy()
-        fit_sc = obs_forward_fit[:,k].copy()
+        obs_sc = obs_forward_gen[:,(k+1)].copy()        #0 index is time t obs, shift right by 1 to align lead times
+        fit_sc = obs_forward_fit[:,(k+1)].copy()        #0 index is time t obs, shift right by 1 to align lead times
         obs_sc = np.log(obs_sc)
         fit_sc = np.log(fit_sc)
 

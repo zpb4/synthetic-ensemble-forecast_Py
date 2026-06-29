@@ -70,7 +70,7 @@ def numba_weighted_choice(arr, prob):
 # Synthetic generation script 
 #-----------------------------------------------------------------
 @njit
-def syn_gen_numba(
+def syn_gen(
     seed,
     keysite_idx,                   # site index of keysite
     kk,                     # 
@@ -164,7 +164,7 @@ def syn_gen_numba(
         knn_lst[j] = np.int64(knn_samp)
 
     # Resampled HEFS dates
-    hefs_resamp_vec = ixx_fit[knn_lst]
+    hcst_resamp_vec = ixx_fit[knn_lst]
     
     # ------------------------------------------------------------------
     # Scale-decay function for optimized threshold
@@ -177,25 +177,25 @@ def syn_gen_numba(
     
     # Final array for synthetic ensemble forecasts
     final_synthetic_forecasts = np.full((n_sites,n_gen,n_leads,n_ens), np.nan, dtype=np.float64)
-    HEFS_scale_out = np.full((n_sites, n_gen, n_leads), np.nan, dtype=np.float64)
+    hcst_scale_out = np.full((n_sites, n_gen, n_leads), np.nan, dtype=np.float64)
     
     for j in range(n_sites):
         # gen_scale, fit_scale: (n_gen, n_leads)
-        gen_scale = obs_forward_gen[j,:, 1:].copy()
-        fit_scale = obs_forward_fit[j,knn_lst, 1:].copy()
+        gen_scale = obs_forward_gen[j,:, 1:].copy()         #0 index is time t obs so remove it, only want to scale forecast values
+        fit_scale = obs_forward_fit[j,knn_lst, 1:].copy()   #0 index is time t obs so remove it, only want to scale forecast values
     
         #calculate scaling array
-        HEFS_scale = gen_scale / fit_scale  # (n_gen, n_leads)
+        hcst_scale = gen_scale / fit_scale  # (n_gen, n_leads)
 
         for k in range(n_leads):
-            col = HEFS_scale[:, k].copy()
+            col = hcst_scale[:, k].copy()
             # handle NaN, Inf, and zeros
             invalid = np.isnan(col) | np.isinf(col) | (col == 0.0)
             col[invalid] = 1.0
 
             # obs_sc for scaling thresholds
-            obs_sc = obs_forward_gen[j,:,k].copy()
-            fit_sc = obs_forward_fit[j,:,k].copy()
+            obs_sc = obs_forward_gen[j,:,(k+1)].copy()        #0 index is time t obs, shift right by 1 to align lead times
+            fit_sc = obs_forward_fit[j,:,(k+1)].copy()        #0 index is time t obs, shift right by 1 to align lead times
             obs_sc = np.log(obs_sc)
             fit_sc = np.log(fit_sc)
 
@@ -220,10 +220,10 @@ def syn_gen_numba(
             exceed = col > ratio_threshold
             col[exceed] = ratio_threshold[exceed]
 
-            HEFS_scale[:, k] = col
+            hcst_scale[:, k] = col
 
         # Smooth across leads for each generation time if so desired
-        HEFS_scale_sm = np.empty_like(HEFS_scale)
+        hcst_scale_sm = np.empty_like(hcst_scale)
         #currently, this will lead to no smoothing, but it could be adjusted if desired
         base = [
             np.array([0.0, 1.0, 0.0]),
@@ -234,14 +234,14 @@ def syn_gen_numba(
 
         for t in range(n_gen):
             # version with smoothing 
-            HEFS_scale_sm[t, :] = np.array([np.convolve(HEFS_scale[t, :], kernel[l], mode='same')[l] for l in np.arange(0,n_leads)]) 
+            hcst_scale_sm[t, :] = np.array([np.convolve(hcst_scale[t, :], kernel[l], mode='same')[l] for l in np.arange(0,n_leads)]) 
 
         # Apply scaling to each ensemble member
         for e in range(n_ens):
-            hefs_fwd_sset = hcst_fit[j,knn_lst,:,:]
-            final_synthetic_forecasts[j, :, :, e] = hefs_fwd_sset[:,:,e] * HEFS_scale_sm
+            hcst_fwd_sset = hcst_fit[j,knn_lst,:,:]
+            final_synthetic_forecasts[j, :, :, e] = hcst_fwd_sset[:,:,e] * hcst_scale_sm
         
-        HEFS_scale_out[j, :, :] = HEFS_scale_sm
+        hcst_scale_out[j, :, :] = hcst_scale_sm
 
     #reduce size of final synthetic forecast array
     #final_synthetic_forecasts = final_synthetic_forecasts.astype(np.float32)
@@ -251,7 +251,7 @@ def syn_gen_numba(
     ##del obs_forward_fit, obs_forward_gen
     ##gc.collect()
 
-    return final_synthetic_forecasts, hefs_resamp_vec, HEFS_scale_out
+    return final_synthetic_forecasts, hcst_resamp_vec, hcst_scale_out
 
 
 

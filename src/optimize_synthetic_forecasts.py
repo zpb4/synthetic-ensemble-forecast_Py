@@ -18,15 +18,15 @@ data_dir = Path('./data')
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 #user defined inputs 
 #location specifics
-loc             = 'ADO'
-keysite_label   = 'ADOC1'   #keysite for synthetic algorithm optimization and sampling
+loc             = 'HHD'
+keysite_label   = 'HHDW1'   #keysite for synthetic algorithm optimization and sampling
 
 #basic algorithmic settings
-max_lds         = 15        #number of daily lead times to optimize to (default is total number of leads in hindcast dataset)
+max_lds         = 16        #number of daily lead times to optimize to (default is total number of leads in hindcast dataset)
 opt_pct         = 0.99      #percentile of data to optimize to (e.g., 0.99 = optimize to top 1% of events by flow magnitude)
 fixed_kk        = True      #use fixed k value for knn sampling?
 fixed_knn_pwr   = True      #use a fixed knn_pwr value for knn sampling?
-fix_kk          = 20        #if fixed_kk = True, what value to use (default: 20)
+fix_kk          = 30        #if fixed_kk = True, what value to use (default: 20)
 fix_knn_pwr     = -0.5      #if fixed_knn_pwr = True, what value to use (default: -0.5)
 
 #NOTE: the optimization parameter .pkl output file always includes a value for 'fix_kk' and 'fix_knn_pwr', even if 'fixed_kk' and 'fixed_knn_pwr' are set to False
@@ -35,7 +35,7 @@ fix_knn_pwr     = -0.5      #if fixed_knn_pwr = True, what value to use (default
 #optimization settings
 maxiter         = 100       #maximum number of iterations in DE optimizer (note: iterations != nfe; an iteration often has an nfe ~ 100); typical optimizations converge <100 iter
 polish          = False     #whether or not to polish DE opt result with local gradient based optimization
-tol             = 0.01      #convergence tolerance; default is 0.01, make this number smaller if you want the optimization to run longer
+tol             = 0.00001      #convergence tolerance; default is 0.01, make this number smaller if you want the optimization to run longer
 workers         = -1        #number of workers to use for parallel DE optimization (-1 sets algorithm to use all available cores)
 
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
@@ -63,18 +63,18 @@ bad_forcs = data['missing_dates']
 opt_start = max(hcst_dtg[0],obs_fwd_dtg[0])
 opt_end = min(hcst_dtg[-1],obs_fwd_dtg[-1])
 
-ixx_opt = pd.date_range(opt_start, opt_end, freq="D").to_numpy(dtype="datetime64[us]")
-ixx_opt= pd.to_datetime(ixx_opt)
+ixx_opt = pd.date_range(opt_start, opt_end, freq="D")
+ixx_opt = pd.to_datetime(ixx_opt).to_numpy(dtype="datetime64[us]")
 
-#convert to datetime index format
-ixx_obs_fwd = pd.to_datetime(obs_fwd_dtg)
-ixx_hcst = pd.to_datetime(hcst_dtg)
+print(obs_fwd_dtg[0],obs_fwd_dtg[-1])
+print(hcst_dtg[0],hcst_dtg[-1])
+print(ixx_opt[0],ixx_opt[-1])
 
 #reduce arrays to minimum required elements in the fit period
 site_idx = np.where(sites==keysite_label)[0][0]
-obs_opt = obs_fwd[site_idx,np.isin(ixx_obs_fwd,ixx_opt),0]
-obs_fwd_opt = obs_fwd[site_idx,np.isin(ixx_obs_fwd,ixx_opt),:]
-hcst_opt = hcst[site_idx,np.isin(ixx_hcst,ixx_opt),:,:]
+obs_opt = obs_fwd[site_idx,np.isin(obs_fwd_dtg,ixx_opt),0]
+obs_fwd_opt = obs_fwd[site_idx,np.isin(obs_fwd_dtg,ixx_opt),:]
+hcst_opt = hcst[site_idx,np.isin(hcst_dtg,ixx_opt),:,:]
 
 #remove bad forecast days from the optimizer input datasets
 rmv_idx = np.isin(ixx_opt,bad_forcs)
@@ -85,8 +85,8 @@ hcst_opt = np.delete(hcst_opt,rmv_idx,axis=0)
 #to prevent instabilities in generation (e.g. divide by zero), set all obs and obs_fwd zeros to min non-zero value
 min_nzero_vec = obs_opt[obs_opt>0.0]
 min_nzero = min(min_nzero_vec)
-obs_opt[obs_opt==0.0] = min_nzero
-obs_fwd_opt[obs_fwd_opt==0.0] = min_nzero
+obs_opt[obs_opt<=0.0] = min_nzero
+obs_fwd_opt[obs_fwd_opt<=0.0] = min_nzero
 
 #select the desired number of date indices based on specified optimization percent value
 num_top_dates = np.int64((1-opt_pct)*len(ixx_opt))
@@ -95,13 +95,13 @@ opt_obs = obs_opt[opt_sset_idx]
 seed = 1
 
 #compute a subsetted matrix of indices including offsets for lead times
-opt_idx_mat = np.full((max_lds,num_top_dates),np.nan,dtype=np.int64)
+opt_idx_mat = np.full((max_lds,num_top_dates),0,dtype=np.int64)
 for i in range(max_lds):
     opt_idx_mat[i,:] = opt_sset_idx - (i+1)
 
 #flattened version of matrix above for integration with synthetic generation code
 opt_idx_flat = opt_idx_mat.flatten()
-    
+
 # --------------------- Function for defining objective function of synthetics ----------------------------
 #Note: all intermediary functions are numba compatible @njit functions
 @njit
@@ -278,28 +278,28 @@ if __name__ == "__main__":
     best_sig_a   = result.x[5]
     best_sig_b   = result.x[6]
     
-#--------------------------------------------------------------------------------------------
-#save best parameter set
-#if parameters are fixed, ensure the fixed parameter is output from the optimizer
-if fixed_kk == True:
-    if best_kk != fix_kk:
-        raise ValueError("fixed kk does not equal optimized kk value")
-if fixed_knn_pwr == True:
-    knn_str = str(fix_knn_pwr)
-    dec_cnt = len(knn_str.split('.')[1])
-    best_knn_pwr = np.round(best_knn_pwr,decimals=dec_cnt)
-    if best_knn_pwr != fix_knn_pwr:
-        raise ValueError("fixed knn_pwr does not equal optimized knn_pwr value")
+    #--------------------------------------------------------------------------------------------
+    #save best parameter set
+    #if parameters are fixed, ensure the fixed parameter is output from the optimizer
+    if fixed_kk == True:
+        if best_kk != fix_kk:
+            raise ValueError("fixed kk does not equal optimized kk value")
+    if fixed_knn_pwr == True:
+        knn_str = str(fix_knn_pwr)
+        dec_cnt = len(knn_str.split('.')[1])
+        best_knn_pwr = np.round(best_knn_pwr,decimals=dec_cnt)
+        if best_knn_pwr != fix_knn_pwr:
+            raise ValueError("fixed knn_pwr does not equal optimized knn_pwr value")
 
-#save parameters as a dictionary with key specifications in the outfile name for reloading
-params = {'kk': best_kk, 'knn_pwr': best_knn_pwr, 'scale_pwr': best_scale_pwr, 'hi': best_hi,'lo': best_lo, 'sig_a': best_sig_a, 'sig_b': best_sig_b}
-outfile = '/optimized-parameters_keysite=%s_opt-pct=%s_fixed-kk=%s_kk=%s_fixed-knn-pwr=%s_knn-pwr=%s.pkl' %(keysite_label,opt_pct,fixed_kk,best_kk,fixed_knn_pwr,best_knn_pwr)
+    #save parameters as a dictionary with key specifications in the outfile name for reloading
+    params = {'kk': best_kk, 'knn_pwr': best_knn_pwr, 'scale_pwr': best_scale_pwr, 'hi': best_hi,'lo': best_lo, 'sig_a': best_sig_a, 'sig_b': best_sig_b}
+    outfile = '/optimized-parameters_keysite=%s_opt-pct=%s_fixed-kk=%s_kk=%s_fixed-knn-pwr=%s_knn-pwr=%s.pkl' %(keysite_label,opt_pct,fixed_kk,best_kk,fixed_knn_pwr,best_knn_pwr)
 
-pickle.dump(params,open(out_dir + outfile,'wb'))
+    pickle.dump(params,open(out_dir + outfile,'wb'))
 
-#record complete time 
-now=datetime.now()
-print('opt end',now.strftime("%H:%M:%S"))
+    #record complete time 
+    now=datetime.now()
+    print('opt end',now.strftime("%H:%M:%S"))
 
 
 
